@@ -1,0 +1,393 @@
+---
+title: "Rebrickable - Reproducible Report"
+author: "Tymon Dydowicz and Wojciech Cieśla"
+date: "2023-05-27"
+output: 
+  rmdformats::readthedown:
+    highlight: espresso
+    toc_depth: 3
+---
+
+```{r setup, echo=F, include=F, warning=F}
+set.seed(213723)
+
+library(dplyr)
+library(ggplot2)
+library(plotly)
+library(tidyr)
+library(scatterpie)
+library(patchwork)
+library(gganimate)
+library(treemap)
+library(treemapify)
+library(ggpmisc)
+library(igraph)
+library(RColorBrewer)
+library(ggridges)
+library(ggthemes)
+knitr::opts_chunk$set(echo = TRUE)
+
+igraph_to_plotly <- function(G, L, hover = "text", edgeColor = "#fff", backgroundColor = "#fdf6e3") {
+  blankAxis <- axis <- list(title = "", showgrid = FALSE, showticklabels = FALSE, zeroline = FALSE)
+  # get vetrex set and edge set
+  vs <- V(G)
+  es <- as.data.frame(get.edgelist(G))
+  Nv <- length(vs)
+  Ne <- length(es[1]$V1)
+  
+  num_of_sets <- V(G)$num_of_sets
+  num_of_themes <- V(G)$num_of_themes
+  num_of_themes_colors <- colorRampPalette(c("lightgreen", "darkgreen"))(max(num_of_themes))
+  node_colors <- num_of_themes_colors[num_of_themes]
+  
+  
+  # Margins
+  m <- list(
+    l = 50,
+    r = 0,
+    b = 0,
+    t = 50,
+    pad = 0
+  )
+  
+  # get layout
+  Xn <- L[,1]
+  Yn <- L[,2]
+  network <- plot_ly(x = ~Xn, y = ~Yn, mode = "markers", text = vs$label, hoverinfo = "text", marker = list(size = num_of_sets*3, color = node_colors)) %>%
+    layout( margin = m) #autosize = F, width = 1130, height = 1130,
+  
+  # draw lines between edges
+  edge_shapes <- list()
+  for(i in 1:Ne) {
+    v0 <- es[i,]$V1
+    v1 <- es[i,]$V2
+    
+    # edge is a line
+    edge_shape = list(
+      type = "line",
+      line = list(color = edgeColor, width = 0.8),
+      x0 = Xn[v0],
+      y0 = Yn[v0],
+      x1 = Xn[v1],
+      y1 = Yn[v1]
+    )
+    
+    # save edge shape
+    edge_shapes[[i]] <- edge_shape
+  }
+  
+  # no title, blank layout
+  return(layout(
+    network,
+    title = 'Minifigures Network Graph',
+    shapes = edge_shapes,
+    xaxis = blankAxis,
+    yaxis = blankAxis,
+    paper_bgcolor = backgroundColor,
+    plot_bgcolor = backgroundColor,
+    scene = list(
+      autorange = F,
+      aspectmode = 'manual',
+      aspectratio = list(x = 1, y = 1)
+    )
+  ))
+}
+```
+```{r, echo=F, fig.width=0.5, fig.height=0.5}
+knitr::include_graphics("Monograms/01_znak/PP_znak_pełny_RGB.png")
+```
+```{r dataLoading, include=FALSE}
+parts = read.csv("rebrickable/inventory_parts.csv", sep=",")
+sets = read.csv("rebrickable/sets.csv", sep=",")
+themes = read.csv("rebrickable/themes.csv", sep=",")
+inventories = read.csv("rebrickable/inventories.csv", sep=",")
+colors = read.csv("rebrickable/colors.csv", sep=",")
+inventoriesMinifigs = read.csv("rebrickable/inventory_minifigs.csv", sep=",")
+minifigures = read.csv("rebrickable/minifigs.csv", sep=",")
+```
+
+## Introduction
+
+### Authors
+Tymon Dydowicz 151936\
+Wojtek Cieśla 151957
+
+### Description
+To create this report we made use of freely available [Rebrickable dataset](https://rebrickable.com/downloads/) which describes Lego sets, pieces and interactions between them. Our main goal while creating this report was to create many enjoyable and aesthetically appealing visualizations as well as to present the enormous size of Lego industry. Most of the charts are quite hard to interpret from the get go and require some exploring which was made easy with plotly and interactiveness.
+
+
+## Analysis
+
+### Top 20 Parts by quantity
+```{r top20Parts, echo=FALSE, warning=FALSE}
+top20Parts <- parts %>% 
+  select(-is_spare, -color_id) %>%
+  group_by(part_num) %>%
+  summarise(quantity = sum(quantity)) %>%
+  arrange(desc(quantity)) %>%
+  mutate(bar_color = ifelse(row_number() == 1, "#ffffbf", "#026c39")) %>%
+  slice(1:20)
+
+top20PartsGraph <- ggplot(top20Parts, aes(x = reorder(part_num, quantity), y = quantity, fill = bar_color)) +
+  geom_bar(stat = "identity", color = "black", linewidth = 0.2, width = 0.8) +
+  coord_flip() +
+  geom_text(aes(label = quantity), vjust = 0.5, hjust = -0.1, size = 3, position = position_stack(vjust = 0.5)) +
+  labs(x = "Part Number", y = "Quantity", title = "Top 20 Parts by Quantity") +
+  guides(fill = F) +
+  theme_solarized() +
+  scale_fill_manual(values = c("#ffffbf", "#026c39"))
+
+ggplotly(top20PartsGraph)
+```
+
+Simple bar chart showing top 20 parts by quantity. The most popular part is a simple 1x1 brick which is used in almost every set.\
+Which is of no surprise because this piece is very versatile and can be used in many different ways.\
+![3023_Brick](302301.jpg)\
+
+You can see that some parts are counted in hundreds of thousands which is a lot. And serves well to show how big the Lego industry is.\
+
+### Number of Parts per year for a given theme 
+```{r partsPerYear, echo=FALSE}
+setsWithThemes <- sets %>%
+  left_join(themes, by = c("theme_id" = "id")) %>%
+  rename(theme_name = name.y) %>%
+  rename(set_name = name.x) %>%
+  left_join(themes, by = c("parent_id" = "id")) %>%
+  rename(new_id = parent_id.y) %>%
+  left_join(themes, by = c("new_id" = "id")) %>%
+  mutate(theme = coalesce(name.y, name.x, theme_name)) %>%
+  filter(num_parts > 10) %>%
+  select(set_num, set_name, year, theme, num_parts)
+
+bubbleChart <- ggplot(setsWithThemes, aes(x = year, y = theme, size = num_parts, color = theme, text = paste("Set Name: ", set_name))) +
+  geom_point(alpha = 0.5, position = position_jitter(width = 0.4, height = 0)) +
+  scale_size_continuous(range = c(1, 10)) +
+  labs(x = "Year", y = "Theme", title = "Number of Parts by Year") +
+  guides(size = guide_legend(title = "Number of Parts"), color = "none") +
+  theme(legend.position = "right", plot.title = element_text(hjust = 0.5)) + 
+  theme_solarized()
+
+ggplotly(bubbleChart)
+```
+
+This is a bubble chart showing number of parts per year for a given theme.\ 
+Size of a bubble represents number of parts in a set and each color of the rainbow represents a different theme.\
+I particularly like this visualization due to how colorful it is. Even though it's a bit cluttered at a 
+beggining it creates a nice visual effect and it's not an issue due to the ability to zoom in\
+
+### Colorful Lego
+```{r colorfulLego, echo=FALSE, message=FALSE, warning=FALSE}
+partsWithColors <- parts %>%
+  left_join(colors, by = c("color_id" = "id")) %>%
+  rename(color_name = name) %>%
+  filter(quantity > 0) %>%
+  left_join(inventories, by = c("inventory_id" = "id")) %>%
+  left_join(sets, by = c("set_num" = "set_num")) %>%
+  left_join(themes, by = c("theme_id" = "id")) %>%
+  rename(theme_name = name.y) %>%
+  mutate(red = strtoi(substr(rgb, 1, 2), base = 16),
+         green = strtoi(substr(rgb, 3, 4), base = 16),
+         blue = strtoi(substr(rgb, 5, 6), base = 16)) %>%
+  mutate(rgb_value = rgb(red, green, blue, maxColorValue = 255)) %>%
+  select(part_num, color_name, rgb_value, quantity, theme_name, year) %>%
+  group_by(theme_name, color_name, rgb_value) %>%
+  summarise(quantity = sum(quantity))
+
+topThemes <- partsWithColors %>%
+  group_by(theme_name) %>%
+  summarise(total_quantity = sum(quantity)) %>%
+  slice_max(order_by = total_quantity, n = 30)
+
+partsWithColors <- partsWithColors %>%
+  semi_join(topThemes, by = "theme_name")
+
+pieChart <- partsWithColors %>%
+  group_by(theme_name) %>%
+  mutate(percent = quantity / sum(quantity)) %>%
+  ggplot(aes(x = "", y = percent, fill = rgb_value, text = paste("Color: ", color_name, "<br>Percent: ", percent))) +
+  geom_bar(width = 1, stat = "identity") +
+  coord_polar("y", start = 0) +
+  facet_wrap(~ theme_name) +
+  theme_void() +
+  theme(legend.position = "none",
+        plot.title = element_text(hjust = 0.5, size = 14, color = "black"),
+        plot.background = element_rect(fill = "#fdf6e3")) +
+  labs(title = "Color Distribution by Theme") + 
+  scale_fill_identity()
+
+plot(pieChart)
+```
+
+This one is nothing special, grid of pie charts each showing a color distribution of a given theme.\
+It lets you see which themes are colorful and which are monochromatic, or dominated by shades of gray.\
+Not particularly visually appealing but it's a good way to show a lot of data in a small space, and provide some maybe useful insight into the colors of themes.\
+
+### Tree map of theme hierarchy and percantage of spare parts in sets
+Both these treemaps present hierarchy of themes and how many spare parts are in a set belonging to a given theme.\
+The size of rectangle represents number of parts in a given theme and the hue of a color represents percentage of spare parts.\
+First one although a bit cluttered is easy to instantly extract some conclusions from. Such as that educational sets have almost non spare parts probably 
+because they are not needed in educational projects which are usually bought by schools. Seasonal sets have way more spare parts compared to other themes probably
+to lower risks of consument dissatisfaction had the parts been missing.\
+Second one is cleaner and interactive but it's hard to draw ideas from however it serves as a good exploration tool. 
+
+#### Version 1
+```{r treeMap, echo=FALSE}
+partsInSetsAndTheme <- inventories %>%
+  left_join(parts, by = c("id" = "inventory_id"), multiple = "all") %>%
+  group_by(set_num) %>%
+  mutate(is_spare = ifelse(is_spare == "t", 1, 0)) %>%
+  summarise(num_spare_parts = coalesce(sum(is_spare), 0)) %>%
+  left_join(sets, by = c("set_num" = "set_num")) %>%
+  left_join(themes, by = c("theme_id" = "id")) %>%
+  rename(theme_name = name.y) %>%
+  left_join(themes, by = c("parent_id" = "id")) %>%
+  rename(parent_theme = name) %>%
+  left_join(themes, by = c("parent_id.y" = "id")) %>%
+  rename(parent_parent_theme = name) %>%
+  select(set_num, parent_parent_theme, parent_theme, theme_name, num_parts, num_spare_parts) %>%
+  mutate(num_parts = num_parts + num_spare_parts) %>%
+  mutate(spare_parts_percentage = num_spare_parts / num_parts) %>%
+  arrange(desc(num_parts)) %>%
+  filter(num_parts > 0)
+
+treemap(partsInSetsAndTheme,
+        index=c("parent_parent_theme", "parent_theme", "theme_name", "set_num"),
+        vSize="num_parts",
+        vColor="spare_parts_percentage",
+        type="value",
+        title="Parts in Sets and Themes",
+        
+)
+```
+
+#### Version 2
+```{r treeMap2, echo=FALSE}
+tempSets <- sets %>% 
+  left_join(partsInSetsAndTheme, by = c("set_num" = "set_num")) %>%
+  select(name, theme_id, num_parts.x, spare_parts_percentage) %>%
+  rename(size = num_parts.x) %>%
+  rename(name = name) %>%
+  rename(parent_id = theme_id) %>%
+  filter(size > 0) %>%
+  mutate(id = row_number() + 1000)
+
+themesWithSets <- themes %>%
+  mutate(size = 0, spare_parts_percentage = 0) %>%
+  bind_rows(tempSets)
+
+labels = themesWithSets$name
+values = themesWithSets$size
+ids = themesWithSets$id
+percentages = themesWithSets$spare_parts_percentage
+parents = themesWithSets$parent_id
+
+normalized_percentages <- scales::rescale(percentages)
+#assigned_colors <- color_scale(normalized_percentages)
+
+treemap <- plot_ly(
+  type = "treemap",
+  ids = ids,
+  labels = labels,
+  values = values,
+  parents = parents,
+  marker = list(
+    colorscale = "Greens",
+    colors = percentages,
+    colorbar = list(
+      title = "Percentage"
+    ))
+)
+
+ggplotly(treemap)
+```
+
+### Distribution of theme popularity
+```{r ridges, echo=FALSE, message=FALSE, warning=FALSE}
+top20popularThemes <- sets %>%
+  left_join(themes, by = c("theme_id" = "id")) %>%
+  left_join(themes, by = c("parent_id" = "id"), multiple = "all") %>%
+  left_join(themes, by = c("parent_id.y" = "id"), multiple = "all") %>%
+  mutate(main_parent_theme = coalesce(name.y.y, name.x.x, name.y)) %>%
+  mutate(main_theme_id = coalesce(parent_id.y, parent_id.x, theme_id)) %>%
+  select(set_num, main_parent_theme, main_theme_id) %>%
+  group_by(main_parent_theme, main_theme_id) %>%
+  summarise(num_of_sets = n_distinct(set_num)) %>%
+  arrange(desc(num_of_sets)) %>%
+  head(20)
+
+setsThemes <- sets %>%
+  left_join(themes, by = c("theme_id" = "id")) %>%
+  left_join(themes, by = c("parent_id" = "id"), multiple = "all") %>%
+  left_join(themes, by = c("parent_id.y" = "id"), multiple = "all") %>%
+  mutate(main_parent_theme = coalesce(name.y.y, name.x.x, name.y)) %>%
+  mutate(main_theme_id = coalesce(parent_id.y, parent_id.x, theme_id)) %>%
+  select(set_num, name.x, year, main_theme_id, num_parts, img_url) %>%
+  rename(name = name.x) %>%
+  inner_join(top20popularThemes, by = c("main_theme_id" = "main_theme_id")) %>%
+  group_by(main_parent_theme, year) %>%
+  summarise(num_of_sets = n_distinct(set_num)) %>%
+  arrange(year, main_parent_theme)
+
+ridgelines <- ggplot(setsThemes, aes(year, main_parent_theme, height = num_of_sets, group = main_parent_theme)) + 
+  geom_density_ridges(stat = "identity", scale = 5., fill = "#026c39", alpha = 0.8) +
+  theme_solarized() +
+  labs(title = "Distribution of number of released sets for particular theme", y = "Theme") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+ridgelines
+```
+This graph shows distribution of released sets in particular year for a given theme.\
+years are on the x-axis while themes are on y-axis, the height of the distribution curve represents how many sets were released in given year for that theme.\
+It's an example of both clean and easy to interpret visualization. Easy take aways are f.e that 'gear' has been on popularity rise since 2000 and is a the most popular theme
+or that 'bionicle' after it's initial boom in 2002 died early on.
+
+### Minifigure relations
+```{r minifigures, echo=FALSE, message=FALSE, warning=FALSE}
+minifigureOccurences <- minifigures %>%
+  left_join(inventoriesMinifigs, by = c("fig_num" = "fig_num"), multiple = "all") %>%
+  left_join(inventories, by = c("inventory_id" = "id")) %>%
+  left_join(sets, by = c("set_num" = "set_num")) %>%
+  left_join(themes, by = c("theme_id" = "id")) %>%
+  rename(theme_name = name.y) %>% 
+  rename(figure_name = name.x) %>%
+  group_by(figure_name) %>%
+  summarise(num_of_sets = n_distinct(set_num),
+            num_of_themes = n_distinct(theme_name),
+            themes_combined = paste(theme_name, collapse = ";")) %>%
+  filter(num_of_sets > 0) %>%
+  arrange(desc(num_of_sets)) %>%
+  slice(1:1000)
+
+minifiguresThemes <- strsplit(as.character(minifigureOccurences$themes_combined), ";")
+
+
+g <- graph.empty()
+g <- add.vertices(g, nrow(minifigureOccurences), attr = minifigureOccurences)
+
+for (i in 1:nrow(minifigureOccurences)) {
+  for (j in 1:nrow(minifigureOccurences)) {
+    if (i != j && any(minifiguresThemes[[i]] %in% minifiguresThemes[[j]])) {
+      g <- add.edges(g, c(i, j))
+    }
+  }
+}
+
+V(g)$label <- minifigureOccurences$figure_name
+V(g)$size <- minifigureOccurences$num_of_sets * 3
+
+layout <- layout_with_fr(g)
+igraph_to_plotly(g, layout)
+```
+
+My magnum opus of this project.\
+This network graph shows relations between minifigures.\
+Every node is a minifigure, the size of the node represents how many sets that minifigure appeared in and the depth of green color represents how many themes it appeared in.\
+Two minifigures are connected if they appeared in at least one common theme.\
+This graph is interesting, pleasing to look at and can provide some interesting insights, and thanks to it's interactivity it's easy to explore.\
+Straight from the get go we can figure out which minifigure is most generic bo looking at amount of links coming out from the node.\
+With further analysis we can find fully connected graphs of nodes which can mean with high probability that those minifigures are from the same theme and that there exist some protagonist.\
+
+## Conclusion
+This project was a great opportunity to learn about data visualization.\
+I've learned a lot about different types of graphs and how to use them to present data. 
+I hope that I managed to make them eye-catching, nice to look at and interesting.\
