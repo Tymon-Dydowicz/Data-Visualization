@@ -10,7 +10,7 @@ Trend analysis: Track coffee consumption patterns over time and identify emergin
 User-friendly interface: KofiDash provides a user-friendly interface that makes it easy to navigate, filter, and interact with the data.
 
 ## Live Demo
-Check out the live demo of KofiDash [here](). Experience the power of coffee analysis firsthand and explore the rich features offered by the dashboard.
+Check out the live demo of KofiDash [here](https://tymon-dydowicz.shinyapps.io/kofidashboardu/). Experience the power of coffee analysis firsthand and explore the rich features offered by the dashboard.
 
 ## Contributing
 Contributions are welcome! If you have any ideas, suggestions, or bug reports, please open an issue or submit a pull request. Let's make KofiDash even better together.
