@@ -1,0 +1,81 @@
+country,coffee_type,number_of_people
+Poland,Espresso,5000
+Poland,Cappuccino,7500
+Poland,Latte,3000
+Poland,Americano,4000
+Poland,Mocha,6000
+Poland,Macchiato,3500
+Poland,Iced Coffee,2000
+Poland,Cold Brew,2500
+Poland,Affogato,1000
+Poland,Turkish Coffee,4500
+USA,Espresso,6500
+USA,Cappuccino,9000
+USA,Latte,4000
+USA,Americano,5500
+USA,Mocha,7500
+USA,Macchiato,4000
+USA,Iced Coffee,3000
+USA,Cold Brew,4000
+USA,Affogato,2000
+USA,Turkish Coffee,5000
+Germany,Espresso,5500
+Germany,Cappuccino,8000
+Germany,Latte,3500
+Germany,Americano,4500
+Germany,Mocha,6500
+Germany,Macchiato,3000
+Germany,Iced Coffee,2500
+Germany,Cold Brew,3000
+Germany,Affogato,1500
+Germany,Turkish Coffee,5000
+France,Espresso,4000
+France,Cappuccino,6000
+France,Latte,2500
+France,Americano,3500
+France,Mocha,5500
+France,Macchiato,3000
+France,Iced Coffee,2000
+France,Cold Brew,2500
+France,Affogato,1000
+France,Turkish Coffee,4000
+Italy,Espresso,6000
+Italy,Cappuccino,8500
+Italy,Latte,4000
+Italy,Americano,5000
+Italy,Mocha,7000
+Italy,Macchiato,3500
+Italy,Iced Coffee,2500
+Italy,Cold Brew,3000
+Italy,Affogato,1500
+Italy,Turkish Coffee,5500
+Spain,Espresso,4500
+Spain,Cappuccino,7000
+Spain,Latte,3000
+Spain,Americano,4000
+Spain,Mocha,6000
+Spain,Macchiato,3500
+Spain,Iced Coffee,2000
+Spain,Cold Brew,2500
+Spain,Affogato,1000
+Spain,Turkish Coffee,4500
+Brazil,Espresso,7000
+Brazil,Cappuccino,9500
+Brazil,Latte,5000
+Brazil,Americano,6500
+Brazil,Mocha,8500
+Brazil,Macchiato,5000
+Brazil,Iced Coffee,4000
+Brazil,Cold Brew,4500
+Brazil,Affogato,2000
+Brazil,Turkish Coffee,6000
+Australia,Espresso,4500
+Australia,Cappuccino,7000
+Australia,Latte,3000
+Australia,Americano,4000
+Australia,Mocha,6000
+Australia,Macchiato,3500
+Australia,Iced Coffee,2000
+Australia,Cold Brew,2500
+Australia,Affogato,1000
+Australia,Turkish Coffee,4500
